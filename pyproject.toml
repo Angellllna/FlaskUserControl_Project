@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "flaskusercontrol"
+version = "0.1.0"
+description = ""
+authors = ["Anhelina Sadvari <sadvari.anhelina@student.uzhnu.edu.ua>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+flask = "^3.1.0"
+flask-sqlalchemy = "^3.1.1"
+flasgger = "^0.9.7.1"
+psycopg2-binary = "^2.9.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
