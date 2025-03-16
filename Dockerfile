@@ -21,5 +21,5 @@ RUN poetry install
 
 EXPOSE 5000
 
-CMD ["poetry", "run", "gunicorn", "-w", "4", "-b", "0.0.0.0:5001", "flaskusercontrol.app:app"]
+CMD ["poetry", "run", "gunicorn", "-w", "4", "-b", "0.0.0.0:5001", "flaskusercontrol.app:create_app()"]
 
