@@ -1,25 +1,45 @@
 import logging
-import re
 
-from flask import jsonify, request
-from flask_jwt_extended import (
-    JWTManager,
-    create_access_token,
-    create_refresh_token,
-    get_jwt_identity,
-    jwt_required,
-)
+from flasgger import Swagger
+from flask import Flask, jsonify, request
+from marshmallow import Schema, ValidationError, fields, validate
 from werkzeug.exceptions import MethodNotAllowed, NotFound
+
 from flaskusercontrol import create_app, db
 from flaskusercontrol.models import User
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 app = create_app()
+swagger = Swagger(app)
 
 EMAIL_REGEX = r"[^@]+@[^@]+\.[^@]+"
+
+
+class UserSchema(Schema):
+    name = fields.String(required=True, validate=validate.Length(min=1, max=80))
+    email = fields.String(
+        required=True,
+        validate=[
+            validate.Regexp(EMAIL_REGEX, error="Invalid email format"),
+            validate.Length(max=120),
+        ],
+    )
+    password = fields.String(
+        required=True, validate=validate.Length(min=6, max=255), load_only=True
+    )
+
+
+class UserUpdateSchema(Schema):
+    name = fields.String(validate=validate.Length(min=1, max=80))
+    email = fields.String(
+        validate=[
+            validate.Regexp(EMAIL_REGEX, error="Invalid email format"),
+            validate.Length(max=120),
+        ]
+    )
+    password = fields.String(validate=validate.Length(min=6, max=255), load_only=True)
 
 
 @app.route("/")
@@ -29,9 +49,6 @@ def home():
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    """
-    Глобальний обробник помилок: логуємо та повертаємо 500, якщо це не 404/405.
-    """
     if isinstance(e, NotFound):
         return jsonify({"error": "Not Found"}), 404
     if isinstance(e, MethodNotAllowed):
@@ -43,29 +60,28 @@ def handle_exception(e):
 
 @app.route("/users", methods=["POST"])
 def create_user():
-    data = request.get_json()
-    if not data:
+    json_data = request.get_json()
+    if not json_data:
         return jsonify({"error": "No input data provided"}), 400
 
-    name = data.get("name")
-    email = data.get("email")
-    password = data.get("password")
+    try:
+        validated_data = UserSchema().load(json_data)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
 
-    if not name or not email or not password:
-        return jsonify({"error": "Missing required fields: name, email, password"}), 400
+    name = validated_data["name"]
+    email = validated_data["email"]
+    password = validated_data["password"]
 
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "Email already exists"}), 400
 
     try:
         new_user = User(name=name, email=email)
-
-        if password:
-            new_user.set_password(password)
+        new_user.set_password(password)
 
         db.session.add(new_user)
         db.session.commit()
-
         logger.info("User %s created successfully", email)
         return jsonify({"message": "User created successfully"}), 201
     except Exception as e:
@@ -99,25 +115,25 @@ def get_user_by_id(user_id):
 
 @app.route("/users/<int:user_id>", methods=["PUT"])
 def update_user(user_id):
-    data = request.get_json()
-    if not data:
+    json_data = request.get_json()
+    if not json_data:
         return jsonify({"error": "No input data provided"}), 400
 
-    name = data.get("name")
-    email = data.get("email")
-    password = data.get("password")
+    try:
+        validated_data = UserUpdateSchema().load(json_data, partial=True)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
 
     try:
         user = User.query.get(user_id)
         if not user:
             return jsonify({"error": "User not found"}), 404
 
-        new_name = data.get("name")
-        if new_name:
-            user.name = new_name
+        if "name" in validated_data:
+            user.name = validated_data["name"]
 
-        new_email = data.get("email")
-        if new_email:
+        if "email" in validated_data:
+            new_email = validated_data["email"]
             existing_email = User.query.filter(
                 User.email == new_email, User.id != user_id
             ).first()
@@ -125,9 +141,8 @@ def update_user(user_id):
                 return jsonify({"error": "Email already exists"}), 400
             user.email = new_email
 
-        new_password = data.get("password")
-        if new_password:
-            user.set_password(new_password)
+        if "password" in validated_data:
+            user.set_password(validated_data["password"])
 
         db.session.commit()
         logger.info("User %s updated successfully", user.email)
@@ -140,7 +155,6 @@ def update_user(user_id):
 
 @app.route("/users/<int:user_id>", methods=["DELETE"])
 def delete_user(user_id):
-    
     try:
         user = User.query.get(user_id)
         if not user:
@@ -153,6 +167,7 @@ def delete_user(user_id):
         db.session.rollback()
         logger.exception("Error deleting user: %s", e)
         return jsonify({"error": "An error occurred while deleting user"}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5001)

@@ -2,7 +2,7 @@ from flask import Flask
 
 from flaskusercontrol.config import Config
 from flaskusercontrol.globals import bcrypt, db, jwt, migrate
-from flaskusercontrol.models import User  # Імпортуємо моделі після створення db
+from flaskusercontrol.models import User 
 
 
 def create_app():
