@@ -7,7 +7,8 @@ WORKDIR /app
 RUN pip install --upgrade pip
 RUN pip install poetry
 
-# Копіюємо файли в контейнер
+RUN pip install --no-cache-dir gunicorn
+
 COPY pyproject.toml poetry.lock README.md ./
 
 
@@ -15,12 +16,10 @@ COPY flaskusercontrol/ flaskusercontrol/
 
 
 
-# Встановлюємо Poetry та залежності
 RUN poetry install
 
 
-# Виставляємо порт Flask
 EXPOSE 5000
 
-# Запускаємо додаток
-CMD ["poetry", "run", "python", "flaskusercontrol/app.py"]
+CMD ["poetry", "run", "gunicorn", "-w", "4", "-b", "0.0.0.0:5001", "flaskusercontrol.app:app"]
+
