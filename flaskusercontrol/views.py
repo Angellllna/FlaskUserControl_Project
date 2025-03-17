@@ -143,6 +143,17 @@ def get_users():
     ---
     tags:
       - users
+    parameters:
+      - in: query
+        name: offset
+        type: integer
+        required: false
+        description: Pagination offset 
+      - in: query
+        name: limit
+        type: integer
+        required: false
+        description: Pagination limit
     responses:
       200:
         description: List of users
@@ -159,6 +170,12 @@ def get_users():
                 type: string
               created_at:
                 type: string
+            offset:
+                type: integer
+            limit:
+                type: integer
+            total:
+                type: integer
       500:
         description: An error occurred getting users
         schema:
@@ -168,9 +185,20 @@ def get_users():
               type: string
     """
     try:
-        users = User.query.all()
+        offset = request.args.get("offset", default=0, type=int)
+        limit = request.args.get("limit", default=10, type=int)
+        total = User.query.count()
+        
+        users = User.query.offset(offset).limit(limit).all()
         users_list = [user.to_dict() for user in users]
-        return jsonify(users_list), 200
+        return jsonify(
+            {
+                "users": users_list,
+            "offset": offset,
+            "limit": limit,
+            "total": total
+            }
+        ), 200
     except Exception as e:
         logger.exception("Error getting users: %s", e)
         return jsonify({"error": "An error occurred getting users"}), 500
